@@ -1,6 +1,7 @@
 # load config
 import json
 
+# Get config variables
 with open('roboflow_config.json') as f:
     config = json.load(f)
 
@@ -12,6 +13,7 @@ with open('roboflow_config.json') as f:
     FRAMERATE = config["FRAMERATE"]
     BUFFER = config["BUFFER"]
 
+# Local Server Link
 if not LOCAL_SERVER:
     upload_url = "".join([
         "https://infer.roboflow.com/" + ROBOFLOW_MODEL,
@@ -28,10 +30,15 @@ else:
 import cv2
 import base64
 import requests
-import time
+import matplotlib.pyplot as plt
+import keras_ocr
 
 # Get webcam interface via opencv-python
 video = cv2.VideoCapture(0)
+
+# keras-ocr will automatically download pretrained
+# weights for the detector and recognizer.
+pipeline = keras_ocr.pipeline.Pipeline()
 
 
 # Infer via the Roboflow Infer API and return the result
@@ -55,6 +62,10 @@ def infer():
 
     # Draw all predictions
     for prediction in resp:
+        # Save License Plate as image
+        if prediction['class'] == "license-plate":
+            getLiscensePlate(img, prediction['x'], prediction['y'], prediction['width'], prediction['height'])
+
         writeOnStream(prediction['x'], prediction['y'], prediction['width'], prediction['height'],
                       prediction['class'],
                       img)
@@ -77,6 +88,21 @@ def writeOnStream(x, y, width, height, className, frame):
     cv2.putText(frame, className, (int(x - width / 2 + 6), int(y + height / 2 + 26)), font, 0.5, (255, 255, 255), 1)
 
 
+def getLiscensePlate(frame, x, y, width, height):
+    # Crop license plate
+    crop_frame = frame[int(y - height / 2):int(y + height / 2), int(x - width / 2):int(x + width / 2)]
+    # Save license Plate
+    cv2.imwrite("plate.jpg", crop_frame)
+    # Read image for OCR
+    images = [keras_ocr.tools.read("plate.jpg")]
+    # Get Predictions
+    prediction_groups = pipeline.recognize(images)
+    # Print the predictions
+    for predictions in prediction_groups:
+        for prediction in predictions:
+            print(prediction[0])
+
+
 if __name__ == '__main__':
     # Main loop; infers sequentially until you press "q"
     while 1:
@@ -84,17 +110,10 @@ if __name__ == '__main__':
         if (cv2.waitKey(1) == ord('q')):
             break
 
-        # Capture start time to calculate fps
-        start = time.time()
-
         # Synchronously get a prediction from the Roboflow Infer API
         image = infer()
         # And display the inference results
         cv2.imshow('image', image)
-
-        # Print frames per second
-        # print((1 / (time.time() - start)), " fps")
-
     # Release resources when finished
     video.release()
     cv2.destroyAllWindows()
