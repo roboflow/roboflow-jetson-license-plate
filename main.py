@@ -2,6 +2,8 @@
 import json
 
 # Get config variables
+from PIL import Image
+
 with open('roboflow_config.json') as f:
     config = json.load(f)
 
@@ -32,6 +34,7 @@ import base64
 import requests
 import matplotlib.pyplot as plt
 import keras_ocr
+import numpy as np
 
 # Get webcam interface via opencv-python
 video = cv2.VideoCapture(0)
@@ -93,6 +96,8 @@ def getLiscensePlate(frame, x, y, width, height):
     crop_frame = frame[int(y - height / 2):int(y + height / 2), int(x - width / 2):int(x + width / 2)]
     # Save license Plate
     cv2.imwrite("plate.jpg", crop_frame)
+    # Pre Process Image
+    preprocessImage("plate.jpg")
     # Read image for OCR
     images = [keras_ocr.tools.read("plate.jpg")]
     # Get Predictions
@@ -103,9 +108,28 @@ def getLiscensePlate(frame, x, y, width, height):
             print(prediction[0])
 
 
+def preprocessImage(image):
+    # Read Image
+    img = cv2.imread(image)
+    # Resize Image
+    img = cv2.resize(img, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_CUBIC)
+    # Change Color Format
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Kernel to filter image
+    kernel = np.ones((1, 1), np.uint8)
+    # Dilate + Erode image using kernel
+    img = cv2.dilate(img, kernel, iterations=1)
+    img = cv2.erode(img, kernel, iterations=1)
+    img = cv2.addWeighted(img, 4, cv2.blur(img, (30, 30)), -4, 128)
+    # Save + Return image
+    cv2.imwrite('processed.jpg', img)
+    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    return img
+
+
 if __name__ == '__main__':
     # Main loop; infers sequentially until you press "q"
-    while 1:
+    while True:
         # On "q" keypress, exit
         if (cv2.waitKey(1) == ord('q')):
             break
