@@ -32,7 +32,6 @@ else:
 import cv2
 import base64
 import requests
-import matplotlib.pyplot as plt
 import keras_ocr
 import numpy as np
 
